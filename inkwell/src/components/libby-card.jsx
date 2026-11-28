@@ -100,11 +100,16 @@ const weeksOf = (h) => (h.libby.waitDays ? Math.max(1, Math.round(h.libby.waitDa
 function LibbyGroup({ name, icon, mine, others, many }) {
   const [open, setOpen] = useState(false);
   if (!mine.length && !others.length) return null;
-  const now = mine.filter((h) => h.libby.available);
+  // Ready now: the two with the most copies free shown; the rest fold away with the waitlists
+  // (user, 28 Nov — seven big rows took a whole screen).
+  const now = mine.filter((h) => h.libby.available).sort((a, b) => (b.libby.copies || 0) - (a.libby.copies || 0));
+  const nowShown = now.slice(0, 2);
+  const nowMore = now.slice(2);
   const wait = mine.filter((h) => !h.libby.available).sort((a, b) => (a.libby.waitDays ?? 999) - (b.libby.waitDays ?? 999));
   const readyElse = others.filter((h) => h.libby.available).length;
   const soonest = wait.length ? weeksOf(wait[0]) : null;
   const folded = [
+    nowMore.length && `${nowMore.length} more ready now`,
     wait.length && `waitlist at ${wait.length}${soonest ? ` · shortest about ${soonest} week${soonest === 1 ? '' : 's'}` : ''}`,
     others.length && (readyElse ? `ready now at ${readyElse} other${readyElse === 1 ? '' : 's'} (no card)` : `${others.length} other${others.length === 1 ? '' : 's'} (no card)`),
   ].filter(Boolean);
@@ -113,7 +118,7 @@ function LibbyGroup({ name, icon, mine, others, many }) {
       <h4>
         <Icon name={icon} size={14} /> {name}
       </h4>
-      {now.length > 0 && <div class="libby-list">{now.map((h) => <LibbyRow h={h} many={many} />)}</div>}
+      {nowShown.length > 0 && <div class="libby-list">{nowShown.map((h) => <LibbyRow h={h} many={many} />)}</div>}
       {folded.length > 0 && (
         <button class="libby-fold" onClick={() => setOpen(!open)}>
           <span>{(now.length ? 'Also: ' : '') + folded.join(' · ')}</span>
@@ -122,6 +127,7 @@ function LibbyGroup({ name, icon, mine, others, many }) {
       )}
       {open && (
         <div class="libby-list">
+          {nowMore.map((h) => <LibbyRow h={h} many={many} />)}
           {wait.map((h) => <LibbyRow h={h} many={many} />)}
           {others.map((h) => (
             <div class={'libby-item' + (h.libby.available ? ' ok' : '')}>

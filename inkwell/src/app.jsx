@@ -48,6 +48,7 @@ import { WhatsNew } from './components/whats-new.jsx';
 import { SharedQuoteSheet, ShareQuoteSheet } from './components/shared-quote.jsx';
 import { BookActionsSheet } from './components/book-actions.jsx';
 import { parseQuoteLink, openSharedQuote } from './lib/quoteshare.js';
+import { swipeTab, keepsSwipe } from './lib/swipetabs.js';
 
 const TABS = [
   ['home', 'Home', 'home'],
@@ -136,6 +137,34 @@ export function App() {
     });
     return () => h.then((x) => x.remove());
   }, []);
+
+  // Swipe left / right on a tab's own screen to move between the tabs.
+  const swipe = useRef(null);
+  const routeNow = useRef(route);
+  useEffect(() => {
+    const start = (e) => {
+      const t = e.touches?.[0];
+      swipe.current = null;
+      if (!t || e.touches.length > 1 || document.querySelector('.sheet-backdrop, .full-player')) return;
+      if (keepsSwipe(e.target, t.clientX, window.innerWidth)) return;
+      swipe.current = { x: t.clientX, y: t.clientY, at: Date.now() };
+    };
+    const end = (e) => {
+      const s0 = swipe.current;
+      swipe.current = null;
+      const t = e.changedTouches?.[0];
+      if (!s0 || !t) return;
+      const tabs = TABS.map(([k]) => k).filter((k) => k !== 'podcasts' || settings.get().podcastsTab !== false);
+      const cur = routeNow.current;
+      if (cur.top || cur.overlay) return;
+      const to = swipeTab(tabs, cur.tab, t.clientX - s0.x, t.clientY - s0.y, Date.now() - s0.at);
+      if (to) nav.tab(to);
+    };
+    document.addEventListener('touchstart', start, { passive: true });
+    document.addEventListener('touchend', end, { passive: true });
+    return () => (document.removeEventListener('touchstart', start), document.removeEventListener('touchend', end));
+  }, []);
+  routeNow.current = route;
 
   const top = route.top;
   const Screen = top ? ROUTES[top.name] : ROOTS[route.tab];

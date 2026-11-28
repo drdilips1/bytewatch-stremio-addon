@@ -13583,3 +13583,39 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .source-results .src-actions.ready > .btn:first-child { flex: 0 1 auto; min-width: 0; }
 .src-best > .src-row:first-child .src-title::after, .src-best > .src-folder:first-child .src-folder-title::after { content: 'Best'; display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 6px; background: var(--accent); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 2px; }
 .source-results .src-more { margin-top: 8px; }
+/* Less air on the book page (user, 28 Nov: "not too spaced out"), and Your copies the same size
+   as the Available tiles above them. */
+.book .available { margin: 4px 16px 8px; }
+.book .available-row { padding-top: 4px; }
+.book .copies-check { margin: 8px 16px 0; }
+.book .copies-check .cc-grid { padding-top: 8px; gap: 8px; }
+.book .copies-check .cc-copy { padding: 8px 12px 8px 10px !important; border-radius: 14px; gap: 1px; max-width: 220px; }
+.book .copies-check .cc-top { gap: 8px; }
+.book .copies-check .cc-top b { font-size: 13.5px !important; line-height: 1.15; }
+.book .copies-check .cc-meta { font-size: 11.5px !important; line-height: 1.25; -webkit-line-clamp: 1; }
+.book .copies-check .cc-radio { width: 18px !important; height: 18px !important; min-width: 18px; }
+.book .copies-check .cc-foot { font-size: 11.5px; color: var(--muted); }
+.book .copies-check .cc-tags:empty, .book .copies-check .cc-bar { display: none; }
+.book .series-card { margin: 14px 16px 0; }
+.book .series-row { padding: 8px 6px 2px; }
+.book .book-actions { margin-top: 14px; }
+.book .book-prog { margin-top: 10px; }
+.book .about-card { margin-top: 14px; }
+.book .book-tiles { margin-top: 14px; }
+.book .source-results, .book .libby { margin-top: 18px; }
+/* Files / Home server / Summary: small round icons beside the words, like StoryShots' S. */
+.book-tiles .tool { flex-direction: row; align-items: center; gap: 10px; padding: 10px 12px; }
+.book-tiles .tool-icon { width: 30px !important; height: 30px !important; min-width: 30px; border-radius: 50% !important; }
+.book-tiles .tool-icon .icon { width: 15px; height: 15px; }
+.book-tiles .ss-ic { font-size: 13px !important; }
+.book-tiles .tool-text b { font-size: 13.5px; }
+.book-tiles .tool-text small { font-size: 11.5px; }
+/* Libby: one card of slim rows, small buttons. */
+.libby .libby-list { gap: 0; border-radius: 16px; overflow: hidden; background: var(--surface); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.libby .libby-list > .libby-item { margin: 0; border: 0; border-radius: 0; background: none; padding: 10px 12px; box-shadow: none; }
+.libby .libby-list > .libby-item + .libby-item { border-top: 1px solid color-mix(in srgb, var(--border) 80%, transparent); }
+.libby .libby-item b { font-size: 14px; }
+.libby .libby-item small { font-size: 12px; }
+.libby .libby-item .pill { height: 32px; padding: 0 12px; font-size: 13px; }
+.libby .libby-fold { margin-top: 8px; }
+.libby .libby-group h4 { margin: 12px 0 6px; }
