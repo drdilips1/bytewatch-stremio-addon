@@ -13386,3 +13386,10 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .full-player .fp-meta { display: flex; flex-direction: column; align-items: center; }
 .fp-chline .fp-chname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fp-chline .fp-chnum { flex: none; font-size: 11.5px; font-weight: 600; opacity: 0.6; }
+/* Settings icon tiles: each group its own colour (blue, teal, violet, pink…) — never gold, and not
+   tied to the theme's accent (with Ivory & Gold every tile was gold). */
+.sh-ic { background: linear-gradient(145deg, color-mix(in oklab, var(--ic, #5b7cfa) 78%, #fff 22%), color-mix(in oklab, var(--ic, #5b7cfa) 88%, #000 12%)); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 4px 10px -4px color-mix(in srgb, var(--ic, #5b7cfa) 55%, transparent); }
+
+/* The greeting: smaller, as before the Premium finish, and the name not in italics. */
+:root[data-polish] .home-greet h1 { font-size: clamp(20px, 6vw, 23px); letter-spacing: -0.3px; }
+:root[data-polish] .home-greet h1 em { font-style: normal; }

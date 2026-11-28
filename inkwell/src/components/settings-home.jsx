@@ -71,7 +71,7 @@ export function SettingsHome({ open }) {
           <div class="sh-card">
             {b.list.map((g) => (
               <button class="sh-row" onClick={() => open(g.id)}>
-                <span class="sh-ic">
+                <span class="sh-ic" style={{ '--ic': g.hue }}>
                   <Icon name={g.icon} size={19} />
                 </span>
                 <span class="sh-t">
