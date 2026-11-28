@@ -648,3 +648,9 @@ User: skip Audiohub+'s new look. PORTED 27 Nov (all below except Mobilism / look
   4. Stats → "Your month in books" share card (image), so listeners spread the word instead of Reddit posts.
   5. Store-edition App Store screenshots made automatically from the web build (Playwright, the 6.7" and 5.5" sizes).
 - 28 Nov Reddit (sinai5151): Premiumize for Usenet NZBs. Done on work 31b4908, not built: moredebrid.sendNzbToPremiumize (transfer/create src=NZB link, polls transfer/list up to 30 s, then a book or pending); usenet-results shows a button per connected service (TorBox / Premiumize). Untested against a real Premiumize account.
+- 28 Nov: ported ALL of Audiohub+'s 28 Nov work (user chose 'Everything'). Work 443b071; test APK + iPhone ios-22 started.
+  - Ported: a0afac55 76da501b 421a3e44 8aadf51a be945888 2c1d4c53 3a33922d 0e7ae693 2288273a c1ab8296 b4190e51 7fb4c028 6fb28260 7b3998af c512cd43 4e81e0be 8c0a1ad9 cdbc7879 4772722d ed8a8895. Skipped the pair 912f018a / 68fd3925 (they cancel out).
+  - Scrubbed: libby-card.jsx removed; LibbyLoanActions lines and the libby condition; settings-home Libby summary; Libby CSS; Settings group 'Libby (public libraries)'; source-results MamResults + MyAnonamouse fallback + 'Mobilism' comment.
+  - Kept AudioYam's: Free tab speed version (dropped freeLast); AudioYam names; AskCard hidden on comics.
+  - Added 'Torrent app' and 'Default cloud service' to settingsgroups (the test caught Torrent app missing); STORE group title 'Your cloud services'. Installed @fontsource-variable/inter 5.2.5 (the About font). What's new EDITION nov-2026-fresh.
+  - New port base: ed8a8895.
