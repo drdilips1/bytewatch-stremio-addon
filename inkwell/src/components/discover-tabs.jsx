@@ -217,7 +217,7 @@ function ForYou() {
     <div class="d-rows">
       <Row title="Picked for you" icon="sparkle" load={recommendedForYou} cacheKey="discPicked" onMore={() => nav.push('shelf', { title: 'Picked for your taste', subtitle: 'Best matches for you', load: recommendedForYou })} />
       {enjoyed && anchor && (
-        <Row title={`Because you enjoyed ${mainTitle(anchor.title)}`} icon="star" load={enjoyed.load} cacheKey={'discEnjoyed:' + anchor.uid} onMore={() => nav.push('shelf', { title: enjoyed.title, subtitle: enjoyed.subtitle, load: enjoyed.load })} />
+        <Row title="Because you enjoyed" subtitle={mainTitle(anchor.title)} icon="star" load={enjoyed.load} cacheKey={'discEnjoyed:' + anchor.uid} onMore={() => nav.push('shelf', { title: enjoyed.title, subtitle: enjoyed.subtitle, load: enjoyed.load })} />
       )}
       <ShortListens />
       <ContinueSeries />

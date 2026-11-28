@@ -13430,3 +13430,21 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .d-info { margin-left: auto; width: 32px; height: 32px; border: 0; background: none; color: var(--muted); font-size: 17px; }
 .free-classics .grid { margin-top: 12px; }
 .d-compact .grid { padding: 0; }
+/* Discover's search box: a soft lifted pill with an accent edge and a tinted Ask button, so it
+   reads as the one place to start (user: "make the search bar a bit more attractive"). */
+.discover .search-box.d-search {
+  height: 56px; padding: 0 6px 0 18px; border-radius: 999px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 92%, #fff 8%), var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  box-shadow: 0 10px 24px -16px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.discover .d-search > .icon { color: var(--accent); }
+.discover .d-search .icon-btn:not(.ask-btn) { color: var(--muted); background: none; box-shadow: none; }
+:root:root .discover .d-search .icon-btn.ask-btn {
+  width: 44px; height: 44px; border-radius: 50%; color: #fff; border: 0;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 80%, #fff 20%), var(--accent));
+  box-shadow: 0 6px 14px -8px var(--accent);
+}
+/* The tabs share the whole line evenly, 🎲 included — no gap at the end. */
+.disc2 .d-tabs > button { flex: 1 1 0; min-width: 0; padding: 0 6px; }
+.disc2 .d-tabs > .d-dice { flex: 0 0 34px; width: 34px; margin-left: 0; }
