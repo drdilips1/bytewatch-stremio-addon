@@ -26,6 +26,8 @@ import { BookTags } from "../components/book-tags.jsx";
 import { Publisher } from "../components/publisher.jsx";
 import { fmtDuration, fmtTime } from "../lib/format.js";
 import { finishLine } from "../lib/stats.js";
+import { ownDescription } from "../lib/describe.js";
+import { lastOfWork, copyFor } from "../lib/lastplayed.js";
 import { nav, useBackClose } from "../lib/nav.js";
 import * as qb from "../sources/qbit.js";
 import { canSendToKindle, sendToKindle, shareEbook } from "../lib/kindle.js";
@@ -241,6 +243,8 @@ export function Book({ book: initial }) {
       )}
       {/* Your copies: right under the places it's available, small tiles in the same row style. */}
       {canListen && <CopiesCheck book={book} />}
+      {/* The series right under your copies, where it always was (user, 28 Nov). */}
+      {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
       {(book.libbyLoan || book.libbyHold) && <LibbyLoanActions book={book} />}
       <div class="book-actions">
         {book.kind === "discover" && !book.libbyLoan && (
@@ -392,7 +396,7 @@ export function Book({ book: initial }) {
 
       {/* The description and Goodreads in one box: what it's about, then what readers think. */}
       <Description
-        text={bestDescription(book.description, gr?.description)}
+        text={bestDescription(ownDescription(book, found), gr?.description)}
         expanded={expanded}
         setExpanded={setExpanded}
         gr={gr}
@@ -401,7 +405,7 @@ export function Book({ book: initial }) {
         {book.source !== "sum" && book.source !== "pod" && (
           <AskCard
             book={book}
-            description={bestDescription(book.description, gr?.description)}
+            description={bestDescription(ownDescription(book, found), gr?.description)}
             genres={(gr?.genres || []).map((g) => g.name)}
           />
         )}
@@ -420,7 +424,6 @@ export function Book({ book: initial }) {
           <BookTags book={book} inline />
         </MyRating>
       )}
-      {book.source !== "pod" && book.source !== "sum" && <SeriesCard book={book} />}
       {/* Files, home server and the summary side by side in one row of tiles (before: three
           different-looking rows between Resume and your place). */}
       <div class="book-tiles">
@@ -756,6 +759,7 @@ const fmtK = (n) =>
  */
 function CopiesCheck({ book }) {
   const local = useStore(phoneSrc.localCfg);
+  const allProg = useStore(progress);
   const prefs = useStore(preferredCopy);
   const [owned, setOwned] = useState(null);
   const [full, setFull] = useState(null);
@@ -776,6 +780,9 @@ function CopiesCheck({ book }) {
   const short = judged.some(({ j }) => j.tag === "abridged" || j.tag === "incomplete");
   if (copies.length < 2 && !short) return null;
   const pref = prefs[workKey(book)]?.uid || "";
+  // The copy you played last, lit — so you carry on there (see also Available).
+  const last = lastOfWork(allProg, (b, uid) => uid === book.uid || matches(t, b.title || ""));
+  const lastUid = last ? copyFor(copies.map((c) => c.uid), last.uid) : null;
   const WHERE = { loc: "On this phone", abs: "Your Audiobookshelf", tb: "TorBox", rd: "Real-Debrid", url: "Link" };
   const TAG = { full: ["FULL", "ok"], abridged: ["ABRIDGED?", "warn"], incomplete: ["MAYBE INCOMPLETE", "bad"] };
   const hm = (s) => fmtDuration(s);
@@ -793,7 +800,8 @@ function CopiesCheck({ book }) {
           : j.tag === "incomplete" ? `${hm(Math.max(0, full.runtime - j.len))} shorter than the full audiobook — parts may be missing.`
           : "";
         return (
-          <div class={"cc-copy" + (chosen ? " on" : "")}>
+          <div class={"cc-copy" + (chosen ? " on" : "") + (lastUid === c.uid ? " last" : "")}>
+            {lastUid === c.uid && <span class="avail-last">Last played</span>}
             <div class="cc-top">
               <b>{WHERE[c.source] || c.addonName || "Copy"}</b>
               <button class={"cc-radio" + (chosen ? " on" : "")} aria-label="Play this copy first" onClick={() => (setPreferred(book, c), toast(`Play uses ${WHERE[c.source] || "this copy"} for this book`))} />

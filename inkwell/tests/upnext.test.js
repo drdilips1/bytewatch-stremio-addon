@@ -3,7 +3,7 @@ vi.mock('../src/lib/store.js', () => ({ persisted: (k, v) => ({ get: () => v, se
 vi.mock('../src/lib/downloads.js', () => ({ downloads: { get: () => ({}) } }));
 vi.mock('../src/sources/local.js', () => ({ localCfg: { get: () => ({}) } }));
 const { upNext } = await import('../src/lib/series.js');
-import { lastPlayed } from '../src/lib/lastplayed.js';
+import { lastOfWork, copyFor } from '../src/lib/lastplayed.js';
 
 const hp = (states) => states.map((state, i) => ({ book: { uid: 'b' + (i + 1), title: 'HP ' + (i + 1) }, state }));
 
@@ -24,17 +24,25 @@ describe('Up next in a series', () => {
 });
 
 describe('Last played copy', () => {
-  const prog = { tb: { updatedAt: 300 }, abs: { updatedAt: 100 }, page: { updatedAt: 200 } };
-  it('picks the copy played most recently', () => {
-    expect(lastPlayed(['abs', 'tb', 'rd'], prog)).toBe('tb');
+  const same = (b) => /sapiens/i.test(b.title || '');
+  const prog = {
+    'tb:1': { updatedAt: 300, book: { title: 'Sapiens' } },
+    'abs:9': { updatedAt: 100, book: { title: 'Sapiens: A Brief History' } },
+    'abs:7': { updatedAt: 900, book: { title: 'Homo Deus' } },
+  };
+  it('is your most recent place in this book, under any copy', () => {
+    expect(lastOfWork(prog, same)).toEqual({ uid: 'tb:1', at: 300 });
   });
-  it("is nothing when the page's own copy was played last", () => {
-    expect(lastPlayed(['abs'], prog, 'page')).toBe(null);
+  it('is nothing when you never played it', () => {
+    expect(lastOfWork(prog, () => false)).toBe(null);
   });
-  it('is the other copy when it was played after this one', () => {
-    expect(lastPlayed(['abs', 'tb'], prog, 'page')).toBe('tb');
+  it('finds the copy by its id', () => {
+    expect(copyFor(['abs:9', 'tb:1', 'rd:2'], 'tb:1')).toBe('tb:1');
   });
-  it('is nothing when no copy was played', () => {
-    expect(lastPlayed(['x', 'y'], prog)).toBe(null);
+  it('finds it by where it is when its id changed and only one copy is from there', () => {
+    expect(copyFor(['abs:9', 'tb:5'], 'tb:1')).toBe('tb:5');
+  });
+  it('guesses nothing when two copies are from there', () => {
+    expect(copyFor(['tb:5', 'tb:6'], 'tb:1')).toBe(null);
   });
 });

@@ -52,8 +52,8 @@
   text-overflow: ellipsis;
   font-variation-settings: 'opsz' 72;
 }
-:root[data-polish] .home-greet h1 em {
-  font-style: italic;
+:root[data-polish] .home-greet h1 .greet-name {
+  font-style: normal;
   color: var(--accent);
 }
 :root[data-polish] .home-greet small {

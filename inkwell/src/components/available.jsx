@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'preact/hooks';
 import { Icon } from './icons.jsx';
 import { toast } from './common.jsx';
 import { useStore, progress } from '../lib/store.js';
-import { lastPlayed } from '../lib/lastplayed.js';
+import { lastOfWork, copyFor } from '../lib/lastplayed.js';
 import { nav } from '../lib/nav.js';
 import * as player from '../lib/player.js';
 import { getDetails, findOwned, localSrc, absSrc } from '../sources/index.js';
@@ -158,7 +158,9 @@ export function Available({ book, editions }) {
   // The copy you played last: first in the row, lit, labelled — so you carry on there instead
   // of tapping another copy that starts from the beginning.
   const prog = useStore(progress);
-  const lastUid = lastPlayed(chips.map((c) => c.act?.book?.uid), prog, book.uid);
+  const last = lastOfWork(prog, (b, uid) => uid === book.uid || matches(mainTitle(book.title || ''), b.title || ''));
+  // This page's own copy played last: Your copies marks it (it has no tile here).
+  const lastUid = last && last.uid !== book.uid ? copyFor(chips.map((c) => c.act?.book?.uid), last.uid) : null;
   const shown = lastUid ? [...chips.filter((c) => c.act?.book?.uid === lastUid), ...chips.filter((c) => c.act?.book?.uid !== lastUid)] : chips;
   const searching = book.kind === 'discover' && (!editions || quick?.pending);
   if (!chips.length && !searching) return null;

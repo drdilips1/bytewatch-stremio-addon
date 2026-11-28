@@ -881,7 +881,7 @@ function Greeting({ me }) {
         {greeting()}
         {me ? (
           <>
-            , <em>{me}</em>
+            , <span class="greet-name">{me}</span>
           </>
         ) : null}
       </h1>

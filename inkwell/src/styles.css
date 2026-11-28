@@ -13392,7 +13392,7 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 
 /* The greeting: smaller, as before the Premium finish, and the name not in italics. */
 :root[data-polish] .home-greet h1 { font-size: clamp(20px, 6vw, 23px); letter-spacing: -0.3px; }
-:root[data-polish] .home-greet h1 em { font-style: normal; }
+.home-greet h1 .greet-name { font-style: normal; }
 
 /* Discover, decluttered (28 Nov): one search box with the camera and Ask inside, smaller tabs
    with 🎲 at the end, and books straight under one row of chips — fewer boxes inside boxes. */
@@ -13499,3 +13499,9 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 .avail-chip { position: relative; }
 .avail-chip.last { background: var(--bg); border-color: var(--dyn, var(--accent)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dyn, var(--accent)) 18%, transparent), 0 8px 18px -8px var(--dyn, var(--accent)); margin: 0 4px; }
 .avail-chip span.avail-last { position: absolute; top: -9px; left: 10px; display: block; padding: 1px 8px; border-radius: 999px; background: var(--dyn, var(--accent)); color: #fff; font-size: 10px; font-weight: 700; line-height: 1.5; }
+/* Your copies: the copy you played last pops a little, glows and says so. */
+.copies-check .cc-grid { padding-top: 10px; }
+.cc-copy { position: relative; }
+.cc-copy.last { border-color: var(--dyn, var(--accent)) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--dyn, var(--accent)) 18%, transparent), 0 8px 18px -8px var(--dyn, var(--accent)); }
+.cc-copy > .avail-last { position: absolute; top: -9px; left: 12px; padding: 1px 8px; border-radius: 999px; background: var(--dyn, var(--accent)); color: #fff; font-size: 10px; font-weight: 700; line-height: 1.5; z-index: 1; }
+.book .series-card { margin: 18px 16px 4px; }
