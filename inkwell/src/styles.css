@@ -13393,3 +13393,40 @@ html.ios:root[data-polish] .book-card:not(.broken) { box-shadow: none; }
 /* The greeting: smaller, as before the Premium finish, and the name not in italics. */
 :root[data-polish] .home-greet h1 { font-size: clamp(20px, 6vw, 23px); letter-spacing: -0.3px; }
 :root[data-polish] .home-greet h1 em { font-style: normal; }
+
+/* Discover, decluttered (28 Nov): one search box with the camera and Ask inside, smaller tabs
+   with 🎲 at the end, and books straight under one row of chips — fewer boxes inside boxes. */
+.search-box.d-search { margin: 4px 16px 12px; }
+.d-search .icon-btn { flex: none; }
+.disc2 .d-tabs { padding: 0 16px; gap: 5px; }
+.disc2 .d-tabs > button { height: 32px; font-size: 13px; padding: 0 10px; flex: 0 0 auto; border-color: color-mix(in srgb, var(--border) 70%, transparent); }
+.disc2 .d-tabs > .d-dice { margin-left: auto; width: 32px; padding: 0; font-size: 16px; display: grid; place-items: center; }
+.d-rows { padding-top: 6px; }
+.d-rows .row { margin-top: 14px; }
+.d-short { padding: 18px 16px 0; }
+.d-shorthead { display: flex; align-items: center; justify-content: space-between; }
+.d-shorthead h3 { margin: 0; font-size: 18px; font-weight: 700; }
+.d-short .row { margin: 6px -16px 0; }
+.d-short .row .row-head { display: none; }
+.d-minichips { display: flex; gap: 6px; margin: 10px 0 0; }
+.d-scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-left: -16px; margin-right: -16px; padding: 0 16px; }
+.d-scroll::-webkit-scrollbar { display: none; }
+.d-minichips button {
+  flex: none; height: 32px; padding: 0 12px; border-radius: 999px; white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); background: none;
+  color: var(--text); font: inherit; font-size: 13.5px; font-weight: 500;
+}
+.d-minichips button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.d-chipsep { flex: none; width: 1px; margin: 6px 2px; background: var(--border); }
+.d-sec.d-compact { padding: 6px 16px 0; }
+.d-compact .d-minichips + .d-minichips { margin-top: 8px; }
+.d-hint { margin: 10px 0 12px; color: var(--muted); font-size: 13px; }
+.d-hint .link-btn { font-size: 13px; }
+.d-freehead { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.d-select, .d-chip {
+  height: 32px; border-radius: 999px; padding: 0 12px; font: inherit; font-size: 13.5px; color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); background: none;
+}
+.d-info { margin-left: auto; width: 32px; height: 32px; border: 0; background: none; color: var(--muted); font-size: 17px; }
+.free-classics .grid { margin-top: 12px; }
+.d-compact .grid { padding: 0; }

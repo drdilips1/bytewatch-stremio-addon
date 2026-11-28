@@ -79,7 +79,8 @@ export function greeting() {
  * The largest version of a cover the host offers (Audible/Amazon, Apple,
  * Open Library, Google Books), so a big banner isn't a blown-up thumbnail.
  */
-/** A sharp but not huge cover for cards and rows (about 500 px): small thumbnails look blurry. */
+/** A sharp but not huge cover for cards and rows (400 px — a card is at most ~130 px wide, so 400
+ * stays sharp on a 3× screen; 500–600 px pictures were about twice the bytes for nothing). */
 // Covers from your own server carry the address and sign-in used when the book was saved:
 // the server's code swaps in the address that answers now and the current sign-in.
 let coverFix = (u) => u;
@@ -87,8 +88,8 @@ export const setCoverFix = (fn) => (coverFix = fn);
 export function cardCover(url) {
   if (!url) return url;
   let u = coverFix(String(url));
-  if (/media-amazon\.com|images-amazon\.com|ssl-images-amazon/.test(u)) u = u.replace(/\._[A-Z0-9_,]+_\.(jpg|jpeg|png)/i, '._SL500_.$1');
-  else if (/mzstatic\.com/.test(u)) u = u.replace(/\/\d+x\d+(bb|cc)?(-\d+)?\.(jpg|png|webp)$/i, '/600x600bb.$3');
+  if (/media-amazon\.com|images-amazon\.com|ssl-images-amazon/.test(u)) u = u.replace(/\._[A-Z0-9_,]+_\.(jpg|jpeg|png)/i, '._SL400_.$1');
+  else if (/mzstatic\.com/.test(u)) u = u.replace(/\/\d+x\d+(bb|cc)?(-\d+)?\.(jpg|png|webp)$/i, '/400x400bb.$3');
   else if (/covers\.openlibrary\.org/.test(u)) u = u.replace(/-S\.jpg/, '-M.jpg');
   else if (/books\.google|googleusercontent/.test(u)) u = u.replace(/&edge=curl/, '');
   return u;

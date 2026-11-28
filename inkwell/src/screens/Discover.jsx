@@ -5,7 +5,7 @@ import { Icon } from '../components/icons.jsx';
 import { searchAll, SOURCES, sourceRank } from '../sources/index.js';
 import { persisted, useStore } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
-import { BooksellerAnswer, askNow, looksLikeRequest, EXAMPLES } from '../components/bookseller.jsx';
+import { BooksellerAnswer, askNow, looksLikeRequest } from '../components/bookseller.jsx';
 import { SourceResults } from '../components/source-results.jsx';
 import { sourceAddons } from '../sources/sourceaddons.js';
 import { RelatedRows } from '../components/related.jsx';
@@ -45,7 +45,6 @@ export function Discover() {
   const [pending, setPending] = useState(0);
   const [filter, setFilter] = useState('all');
   const history = useStore(recent);
-  const [open, setOpen] = useState(false);
   // Recent searches show only while you're in the search box (as suggestions), not on the page after.
   const [typing, setTyping] = useState(false);
   useEffect(() => {
@@ -53,7 +52,6 @@ export function Discover() {
     searchSubs.add(f);
     return () => searchSubs.delete(f);
   }, []);
-  const [hint] = useState(() => EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]);
   const inputRef = useRef();
 
   useEffect(() => {
@@ -83,33 +81,33 @@ export function Discover() {
     <div class="screen discover">
       <div class="screen-head">
         <h1 class="screen-title">Discover</h1>
-        <div class="d-acts">
-          <button class="icon-btn" aria-label="Search" onClick={() => (setOpen(true), setTimeout(() => inputRef.current?.focus(), 30))}>
-            <Icon name="search" size={22} />
-          </button>
-          <button class="icon-btn" aria-label="Find books from a photo, a screenshot or a link" onClick={() => nav.push('find', {})}>
-            <Icon name="camera" size={22} />
-          </button>
-          <AskButton />
-        </div>
       </div>
-      {!(open || q) && <p class="d-tagline">Find your next great listen.</p>}
-      <div class={'search-box' + (open || q ? '' : ' d-hidden')}>
+      {/* One search box, always there: type, describe what you want, or paste a link — the camera
+          (a photo, a screenshot) and Ask sit inside it. (Before: a line of text, a "Try…" line and
+          three icons took the space above the books.) */}
+      <div class="search-box d-search">
         <Icon name="search" size={20} />
         <input
           ref={inputRef}
           value={q}
-          placeholder={aiOn() ? 'Search, describe what you want, or paste a link…' : 'Search, or paste a link…'}
+          placeholder={aiOn() ? 'Search or ask for a book' : 'Search, or paste a link'}
           onInput={(e) => setQ(e.currentTarget.value)}
           onKeyDown={(e) => e.key === 'Enter' && (commit(true), e.currentTarget.blur())}
           onFocus={() => setTyping(true)}
           onBlur={() => (commit(), setTimeout(() => setTyping(false), 200))}
           enterkeyhint="search"
         />
-        {q && (
-          <button class="icon-btn" onClick={() => (setQ(''), setOpen(false))} aria-label="Clear">
+        {q ? (
+          <button class="icon-btn" onClick={() => setQ('')} aria-label="Clear">
             <Icon name="close" size={18} />
           </button>
+        ) : (
+          <>
+            <button class="icon-btn" aria-label="Find books from a photo, a screenshot or a link" onClick={() => nav.push('find', {})}>
+              <Icon name="camera" size={19} />
+            </button>
+            <AskButton />
+          </>
         )}
       </div>
 
@@ -117,11 +115,6 @@ export function Discover() {
         <PasteLink q={q} />
       ) : term.length < 2 ? (
         <>
-          {aiOn() && (
-            <button class="search-hint" onClick={() => (setQ(hint), askNow(hint))}>
-              <Icon name="sparkle" size={14} /> Try “{hint}”
-            </button>
-          )}
           {typing && history.some((h) => !q.trim() || h.toLowerCase().includes(q.trim().toLowerCase())) && (
             <section class="recent">
               <h3>Recent</h3>

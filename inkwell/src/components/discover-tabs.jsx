@@ -5,7 +5,6 @@ import { Row, Cover, Skeleton, Grid, cachedRow } from './common.jsx';
 import { Icon } from './icons.jsx';
 import { persisted, useStore, progress, settings } from '../lib/store.js';
 import { nav } from '../lib/nav.js';
-import { fmtDuration } from '../lib/format.js';
 import { mainTitle, matches } from '../lib/match.js';
 import { rankForYou, fitsHours, scoreBook } from '../lib/taste.js';
 import { anchorBooks, tasteShelves } from '../lib/shelves.js';
@@ -15,7 +14,7 @@ import { audible } from '../sources/catalogs.js';
 import { absSrc } from '../sources/index.js';
 import { localCfg } from '../sources/local.js';
 import * as itunes from '../sources/itunes.js';
-import { GenreChips, recommendedForYou, topicPool, tasteTopics, notOwned } from '../screens/Home.jsx';
+import { recommendedForYou, topicPool, tasteTopics, notOwned } from '../screens/Home.jsx';
 import { GENRES } from '../screens/genres.js';
 
 export const discTab = persisted('discoverTab', 'you');
@@ -95,93 +94,6 @@ export const moodShelf = (keys, { hours, sort } = {}) => {
 };
 const tagged = (list) => list.map((b) => (b.match ? { ...b, tag: `${b.match}% match` } : b));
 
-// ---- For you ----------------------------------------------------------------------
-const weekNo = () => Math.floor((Date.now() / 864e5 + 4) / 7);
-const pickCache = persisted('pickOfWeek', { week: 0, book: null });
-
-/** The top of your recommendations, held for a week, with why it was picked. */
-function PickedForYou() {
-  const cached = useStore(pickCache);
-  const [book, setBook] = useState(cached.week === weekNo() && cached.book ? cached.book : null);
-  const [failed, setFailed] = useState(false);
-  const [why, setWhy] = useState(false);
-  useEffect(() => {
-    if (book) return;
-    let alive = true;
-    const choose = (list) => {
-      const r = (list || []).filter((b) => b?.title && b.cover);
-      if (!r.length) return false;
-      const b = r[weekNo() % Math.min(r.length, 5)];
-      const slim = { uid: b.uid, source: b.source, title: b.title, author: b.author, narrator: b.narrator, cover: b.cover, duration: b.duration, rating: b.rating, ratings: b.ratings, match: b.match, why: b.why, kind: b.kind, genres: b.genres };
-      pickCache.set({ week: weekNo(), book: slim });
-      if (alive) setBook(slim);
-      return true;
-    };
-    (async () => {
-      if (choose(cachedRow('homeRec'))) return;
-      if (choose(await recommendedForYou().catch(() => []))) return;
-      if (choose(await trending().catch(() => []))) return;
-      if (alive) setFailed(true);
-    })();
-    return () => (alive = false);
-  }, []);
-  const reasons = useMemo(() => {
-    if (!book) return [];
-    const r = scoreBook(book).reasons;
-    return [...new Set([book.why, ...r].filter(Boolean))].slice(0, 3);
-  }, [book?.uid]);
-  if (failed) return null;
-  const open = () => nav.push('book', { book });
-  return (
-    <section class="d-sec">
-      <Head icon="sparkle" title="Picked for your taste" onMore={() => nav.push('shelf', { title: 'Picked for your taste', subtitle: 'Best matches for you', load: recommendedForYou })} />
-      {!book ? (
-        <div class="d-card d-pick shimmer" />
-      ) : (
-        <div class="d-card">
-          <div class="d-pick" onClick={open}>
-            <Cover book={book} eager />
-            <div class="d-pick-m">
-              {book.match ? (
-                <span class="d-badge">
-                  <Icon name="check" size={13} /> {book.match}% your taste
-                </span>
-              ) : null}
-              <b>{book.title}</b>
-              <small>
-                {book.author}
-                {book.duration ? ` · ${fmtDuration(book.duration)}` : ''}
-              </small>
-              <div class="d-pick-foot">
-                <div class="d-chips">
-                  {(book.genres || []).slice(0, 2).map((g) => (
-                    <span>{String(g).split(/ & |, /)[0]}</span>
-                  ))}
-                </div>
-                <span class="d-play">
-                  <Icon name="play" size={18} solid />
-                </span>
-              </div>
-            </div>
-          </div>
-          {reasons.length > 0 && (
-            <button class="d-why" onClick={() => setWhy(!why)}>
-              <Icon name="headphones" size={15} /> Why this pick? <Icon name={why ? 'up' : 'down'} size={14} />
-            </button>
-          )}
-          {why && (
-            <ul class="d-why-list">
-              {reasons.map((r) => (
-                <li>{r}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </section>
-  );
-}
-
 /** Books on your server or this phone you've never started, best match first. */
 async function hiddenGems() {
   const prog = progress.get();
@@ -214,9 +126,15 @@ function ShortListens() {
   const label = SHORT.find((x) => x[0] === pick)?.[1] || '';
   const load = moodShelf(() => tasteTopics().map((g) => g.au || g.name), { hours: pick, sort: byRating });
   return (
-    <section class="d-sec">
-      <Head icon="clock" title="Short listens" note="Your kind of book, done in an evening or two." onMore={() => nav.push('shelf', { title: `Short listens · ${label}`, subtitle: 'Your topics, best rated first', load })} />
-      <div class="d-eq d-eq4">
+    <section class="d-short">
+      {/* The heading with its length chips under it; the covers right after (no note, no big buttons). */}
+      <div class="d-shorthead">
+        <h3>Short listens</h3>
+        <button class="d-more" onClick={() => nav.push('shelf', { title: `Short listens · ${label}`, subtitle: 'Your topics, best rated first', load })}>
+          More <Icon name="arrow" size={15} />
+        </button>
+      </div>
+      <div class="d-minichips">
         {SHORT.map(([k, l]) => (
           <button class={pick === k ? 'on' : ''} onClick={() => shortPick.set(k)}>
             {l}
@@ -280,75 +198,31 @@ function ContinueSeries() {
   );
 }
 
-/** "Because you enjoyed…": the book it's built on, opening the shelf of picks. */
-function BecauseYouEnjoyed() {
-  const shelf = useMemo(() => tasteShelves().find((s) => s.key.startsWith('enjoyed:')), []);
-  const anchor = useMemo(() => anchorBooks(1)[0], []);
-  if (!shelf || !anchor) return null;
-  const open = () => nav.push('shelf', { title: shelf.title, subtitle: shelf.subtitle, load: shelf.load });
-  return (
-    <section class="d-sec">
-      <Head icon="star" title="Because you enjoyed…" more="More" onMore={open} />
-      <button class="d-card d-bec" onClick={open}>
-        <Cover book={anchor} />
-        <div class="d-bec-m">
-          <b>{mainTitle(anchor.title)}</b>
-          <small>{shelf.subtitle}</small>
-          <em>See the picks</em>
-        </div>
-        <Icon name="chevron" size={18} />
-      </button>
-    </section>
-  );
+// ---- For you ----------------------------------------------------------------------
+/** One strong pick from your taste, opened ready to play (the 🎲 by the tabs). */
+async function surprise() {
+  const list = (cachedRow('homeRec') || []).length ? cachedRow('homeRec') : await recommendedForYou();
+  const top = (list || []).filter((b) => b?.title).slice(0, 15);
+  if (top.length) nav.push('book', { book: top[Math.floor(Math.random() * top.length)] });
 }
 
-/** One strong pick from your taste, opened ready to play. */
-function SurpriseMe() {
-  const [busy, setBusy] = useState(false);
-  const go = async () => {
-    setBusy(true);
-    try {
-      const list = (cachedRow('homeRec') || []).length ? cachedRow('homeRec') : await recommendedForYou();
-      const top = (list || []).filter((b) => b?.title).slice(0, 15);
-      if (top.length) nav.push('book', { book: top[Math.floor(Math.random() * top.length)] });
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <section class="d-surprise">
-      <div>
-        <b>
-          <Icon name="wand" size={20} /> Surprise me
-        </b>
-        <p>One strong pick from your taste, ready to play.</p>
-        <button class="d-pill" disabled={busy} onClick={go}>
-          {busy ? <span class="spinner small" /> : 'Pick a book'} <Icon name="chevron" size={15} />
-        </button>
-      </div>
-      <div class="d-stack" aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-      </div>
-    </section>
-  );
-}
-
+/**
+ * For you: covers on the first screen. Each row shows last time's books at once (then fresh ones)
+ * and only appears when it has books — no empty grey boxes, nothing important left at the bottom.
+ */
 function ForYou() {
+  const enjoyed = useMemo(() => tasteShelves().find((sh) => sh.key.startsWith('enjoyed:')), []);
+  const anchor = useMemo(() => anchorBooks(1)[0], []);
   return (
-    <>
-      <PickedForYou />
-      <section class="d-sec d-rowsec">
-        <Head icon="gem" title="Hidden gems you own" note="On your server or this phone, never started." onMore={() => nav.push('shelf', { title: 'Hidden gems you own', subtitle: 'Never started, best match first', load: hiddenGems })} />
-        <Row title="" load={hiddenGems} cacheKey="discGems" deps={[]} />
-      </section>
+    <div class="d-rows">
+      <Row title="Picked for you" icon="sparkle" load={recommendedForYou} cacheKey="discPicked" onMore={() => nav.push('shelf', { title: 'Picked for your taste', subtitle: 'Best matches for you', load: recommendedForYou })} />
+      {enjoyed && anchor && (
+        <Row title={`Because you enjoyed ${mainTitle(anchor.title)}`} icon="star" load={enjoyed.load} cacheKey={'discEnjoyed:' + anchor.uid} onMore={() => nav.push('shelf', { title: enjoyed.title, subtitle: enjoyed.subtitle, load: enjoyed.load })} />
+      )}
       <ShortListens />
       <ContinueSeries />
-      <BecauseYouEnjoyed />
-      <SurpriseMe />
-    </>
+      <Row title="Hidden gems you own" subtitle="On your server or this phone, never started" icon="gem" load={hiddenGems} cacheKey="discGems" onMore={() => nav.push('shelf', { title: 'Hidden gems you own', subtitle: 'Never started, best match first', load: hiddenGems })} />
+    </div>
   );
 }
 
@@ -387,57 +261,42 @@ function Moods() {
     return () => (alive = false);
   }, [pick.mood, pick.hours]);
   const shown = items && tagged(items.filter((b) => (pick.kind === 'fic' ? isFiction(b) : pick.kind === 'non' ? !isFiction(b) : true)));
-  const lenLabel = LENGTHS.find((x) => x[0] === pick.hours)?.[1];
   return (
-    <>
-      <section class="d-sec">
-        <Head icon="sparkle" title="How do you want to feel?" />
-        <div class="d-moods">
-          {MOODS.map(([k, icon, title, sub, hue]) => (
-            <button class={'d-mood' + (k === m[0] ? ' on' : '')} style={{ '--h': hue }} onClick={() => set({ mood: k })}>
-              <span class="d-mood-i">
-                <Icon name={icon} size={18} />
-              </span>
-              <span>
-                <b>{title}</b>
-                <small>{sub}</small>
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
-      <section class="d-sec">
-        <Head icon="clock" title="How long?" />
-        <div class="d-eq d-eq4">
-          {LENGTHS.map(([k, l]) => (
-            <button class={pick.hours === k ? 'on' : ''} onClick={() => set({ hours: k })}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </section>
-      <section class="d-sec">
-        <div class="d-seg">
-          {KINDS.map(([k, l]) => (
-            <button class={pick.kind === k ? 'on' : ''} onClick={() => set({ kind: k })}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </section>
-      <section class="d-sec">
-        <Head icon={m[1]} title={`${m[2]}${pick.hours ? ` · ${lenLabel}` : ''}`} note="Best match first, not in your library." />
-        {!shown ? (
-          <div class="grid">{Array.from({ length: 6 }, () => <Skeleton />)}</div>
-        ) : shown.length ? (
-          <Grid items={shown} />
-        ) : (
-          <p class="muted">Nothing for this mix — try another length or Both.</p>
-        )}
-      </section>
-    </>
+    <section class="d-sec d-compact">
+      {/* One row of moods, one row of filters, and the books straight under them (before: six big
+          tiles, then "How long?", then Fiction / Non-fiction — the books started two screens down). */}
+      <div class="d-minichips d-scroll">
+        {MOODS.map(([k, icon, title]) => (
+          <button class={k === m[0] ? 'on' : ''} onClick={() => set({ mood: k })}>
+            {MOOD_EMOJI[k]} {title}
+          </button>
+        ))}
+      </div>
+      <div class="d-minichips d-scroll">
+        {LENGTHS.map(([k, l]) => (
+          <button class={pick.hours === k ? 'on' : ''} onClick={() => set({ hours: k })}>
+            {k ? l : 'Any length'}
+          </button>
+        ))}
+        <span class="d-chipsep" />
+        {KINDS.map(([k, l]) => (
+          <button class={pick.kind === k ? 'on' : ''} onClick={() => set({ kind: k })}>
+            {k ? l : 'All'}
+          </button>
+        ))}
+      </div>
+      <p class="d-hint">{m[3]} · best match first, not in your library</p>
+      {!shown ? (
+        <div class="grid">{Array.from({ length: 6 }, () => <Skeleton />)}</div>
+      ) : shown.length ? (
+        <Grid items={shown} />
+      ) : (
+        <p class="muted">Nothing for this mix — try another length or All.</p>
+      )}
+    </section>
   );
 }
+const MOOD_EMOJI = { mind: '🧠', calm: '🌙', rush: '⚡', grow: '🌱', fun: '😄', epic: '🗺️' };
 
 // ---- Genres and Lists ----------------------------------------------------------------
 const FAV_GENRES = [
@@ -448,32 +307,41 @@ const FAV_GENRES = [
   ['💰', 'Money', 'Money, Economics & Capitalism'],
   ['🕉', 'Spirituality', 'Spirituality & Consciousness'],
 ];
+const genrePick = persisted('discGenre', 'Psychology & Human Behavior');
+/** Genres: your favourites first, then every genre, as one row of chips — the books right under. */
 function Genres() {
+  const want = useStore(genrePick);
+  const favs = FAV_GENRES.map(([icon, label, name]) => ({ icon, label, g: GENRES.find((x) => x.name === name) })).filter((x) => x.g);
+  const rest = GENRES.filter((g) => !favs.some((f) => f.g.name === g.name)).map((g) => ({ icon: '', label: g.name.replace(/\u2011/g, '-'), g }));
+  const all = [...favs, ...rest];
+  const cur = all.find((x) => x.g.name === want) || all[0];
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    setItems(null);
+    moodShelf([cur.g.au || cur.g.ia?.split(' OR ')[0] || cur.g.name])()
+      .then((r) => alive && setItems(r))
+      .catch(() => alive && setItems([]));
+    return () => (alive = false);
+  }, [cur.g.name]);
   return (
-    <>
-      <section class="d-sec">
-        <Head icon="star" title="Your favourites" />
-        <div class="genre-tiles">
-          {FAV_GENRES.map(([icon, label, name]) => {
-            const g = GENRES.find((x) => x.name === name);
-            return (
-              g && (
-                <button class="genre-tile" style={{ '--h': g.hue }} onClick={() => nav.push('browse', { genre: g })}>
-                  <i>{icon}</i>
-                  <b>{label}</b>
-                </button>
-              )
-            );
-          })}
-        </div>
-      </section>
-      <section class="d-sec">
-        <Head icon="grid" title="All genres" />
-        <div class="genre-grid">
-          <GenreChips />
-        </div>
-      </section>
-    </>
+    <section class="d-sec d-compact">
+      <div class="d-minichips d-scroll">
+        {all.map((x) => (
+          <button class={x === cur ? 'on' : ''} onClick={() => genrePick.set(x.g.name)}>
+            {x.icon ? `${x.icon} ` : ''}
+            {x.label}
+          </button>
+        ))}
+      </div>
+      <p class="d-hint">
+        Best match first ·{' '}
+        <button class="link-btn" onClick={() => nav.push('browse', { genre: cur.g })}>
+          everything in {cur.label} →
+        </button>
+      </p>
+      {!items ? <div class="grid">{Array.from({ length: 6 }, () => <Skeleton />)}</div> : items.length ? <Grid items={tagged(items)} /> : <p class="muted">Nothing here right now — try another genre.</p>}
+    </section>
   );
 }
 
@@ -495,54 +363,71 @@ const freeLook = persisted('freeClassics', { lang: 'en', genre: '', sort: 'popul
  * Archive) and Project Gutenberg's human-read audiobooks — one list, each book once, with
  * where it plays from on each card. (Free catalogues stay out of search; this is their place.)
  */
+// The last list you saw, so the tab opens on books at once while a fresh one loads.
+const freeLast = persisted('freeLast', { key: '', items: [] });
 function FreeClassics() {
   const f = useStore(freeLook);
-  const [items, setItems] = useState(null);
+  const key = `${f.lang}|${f.genre}|${f.sort}`;
+  const last = freeLast.get();
+  const [items, setItems] = useState(() => (last.key === key && last.items.length ? last.items : null));
   const [err, setErr] = useState('');
+  const [why, setWhy] = useState(false);
   useEffect(() => {
     let live = true;
-    setItems(null);
+    const kept = freeLast.get();
+    setItems(kept.key === key && kept.items.length ? kept.items : null);
     setErr('');
     Promise.all([import('../sources/archive.js'), import('../sources/gutenbergaudio.js'), import('../lib/freeclassics.js')]).then(async ([ia, gba, fc]) => {
       const code = fc.LANGS.find((x) => x[0] === f.lang)?.[3] || '';
-      const [lv, gb] = await Promise.all([
-        ia.query(fc.iaQuery(f.lang, f.genre), { sort: f.sort === 'new' ? 'addeddate desc' : 'downloads desc', rows: 48 }).catch(() => null),
-        gba.list({ ...(code ? { languages: code } : {}), ...(f.genre ? { topic: f.genre } : {}), ...(f.sort === 'new' ? { sort: 'descending' } : {}) }).catch(() => null),
-      ]);
-      if (!live) return;
-      if (!lv && !gb) return setErr("LibriVox and Gutenberg aren't answering right now — try again in a minute");
-      setItems(fc.mergeFree([['LibriVox', (lv || []).map((b) => ({ ...b, via: 'lv' }))], ['Gutenberg', gb || []]]));
+      let lv = null;
+      let gb = null;
+      const show = () => {
+        if (!live || (!lv && !gb)) return;
+        const list = fc.mergeFree([['LibriVox', (lv || []).map((b) => ({ ...b, via: 'lv' }))], ['Gutenberg', gb || []]]);
+        setItems(list);
+        freeLast.set({ key, items: list.slice(0, 48) });
+      };
+      // LibriVox answers in a second or two; show it straight away and let Gutenberg (often 10 s or
+      // more) join when it arrives, rather than waiting for the slower one before showing anything.
+      const a = ia.query(fc.iaQuery(f.lang, f.genre), { sort: f.sort === 'new' ? 'addeddate desc' : 'downloads desc', rows: 48 }).then((r) => ((lv = r), show())).catch(() => {});
+      const g = Promise.race([
+        gba.list({ ...(code ? { languages: code } : {}), ...(f.genre ? { topic: f.genre } : {}), ...(f.sort === 'new' ? { sort: 'descending' } : {}) }),
+        new Promise((_, no) => setTimeout(() => no(new Error('slow')), 12000)),
+      ]).then((r) => ((gb = r), show())).catch(() => {});
+      await Promise.all([a, g]);
+      if (live && !lv && !gb) {
+        setErr("LibriVox and Gutenberg aren't answering right now — try again in a minute");
+        setItems((x) => x || []);
+      }
     });
     return () => (live = false);
-  }, [f.lang, f.genre, f.sort]);
+  }, [key]);
   const [LANGS, GENRES_FREE] = useFreeLists();
   const set = (patch) => freeLook.set({ ...f, ...patch });
   return (
-    <section class="d-sec free-classics">
-      <Head icon="headphones" title="Free classics" note="Public-domain audiobooks read by volunteers (LibriVox, Project Gutenberg) — free to listen, nothing to sign up for. Public domain in the US; a few may still be in copyright where you live." />
-      <div class="chips free-chips">
-        {LANGS.map(([k, l]) => (
-          <button class={'pill small' + (f.lang === k ? ' active' : '')} onClick={() => set({ lang: k })}>
-            {l}
-          </button>
-        ))}
+    <section class="d-sec d-compact free-classics">
+      <div class="d-freehead">
+        <select class="d-select" value={f.lang} onChange={(e) => set({ lang: e.currentTarget.value })} aria-label="Language">
+          {LANGS.map(([k, l]) => (
+            <option value={k}>{l}</option>
+          ))}
+        </select>
+        <button class="d-chip" onClick={() => set({ sort: f.sort === 'new' ? 'popular' : 'new' })}>
+          {f.sort === 'new' ? 'Newest' : 'Most listened'} ⇅
+        </button>
+        <button class="d-info" aria-label="What are these?" onClick={() => setWhy(!why)}>
+          ⓘ
+        </button>
       </div>
-      <div class="chips free-chips">
+      {why && <p class="d-hint">Public-domain audiobooks read by volunteers (LibriVox, Project Gutenberg) — free to listen, nothing to sign up for. Public domain in the US; a few may still be in copyright where you live.</p>}
+      <div class="d-minichips d-scroll">
         {GENRES_FREE.map(([k, l]) => (
-          <button class={'pill small' + (f.genre === k ? ' active' : '')} onClick={() => set({ genre: k })}>
+          <button class={f.genre === k ? 'on' : ''} onClick={() => set({ genre: k })}>
             {l}
           </button>
         ))}
       </div>
-      <div class="segmented free-sort">
-        <button class={f.sort !== 'new' ? 'on' : ''} onClick={() => set({ sort: 'popular' })}>
-          Most listened
-        </button>
-        <button class={f.sort === 'new' ? 'on' : ''} onClick={() => set({ sort: 'new' })}>
-          Newest
-        </button>
-      </div>
-      {err ? <p class="muted pad-s">{err}</p> : !items ? <div class="grid">{Array.from({ length: 6 }, () => <Skeleton />)}</div> : items.length ? <Grid items={items} /> : <p class="muted pad-s">Nothing here with these choices — try another genre or language.</p>}
+      {err && !items?.length ? <p class="muted pad-s">{err}</p> : !items ? <div class="grid">{Array.from({ length: 6 }, () => <Skeleton />)}</div> : items.length ? <Grid items={items} /> : <p class="muted pad-s">Nothing here with these choices — try another genre or language.</p>}
     </section>
   );
 }
@@ -557,6 +442,7 @@ function useFreeLists() {
 
 export function DiscoverBrowse() {
   const tab = useStore(discTab);
+  const [busy, setBusy] = useState(false);
   useStore(settings);
   return (
     <div class="disc2">
@@ -566,6 +452,9 @@ export function DiscoverBrowse() {
             {l}
           </button>
         ))}
+        <button class="d-dice" aria-label="Surprise me: one strong pick for you" title="Surprise me" disabled={busy} onClick={() => (setBusy(true), surprise().finally(() => setBusy(false)))}>
+          {busy ? <span class="spinner small" /> : '🎲'}
+        </button>
       </div>
       {tab === 'moods' ? <Moods /> : tab === 'genres' ? <Genres /> : tab === 'lists' ? <Lists /> : tab === 'free' ? <FreeClassics /> : <ForYou />}
     </div>
